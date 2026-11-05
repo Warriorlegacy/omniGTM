@@ -1,0 +1,87 @@
+# Daily Content Generation Workflow
+# Runs every day at 6 AM IST to generate social media content
+
+name: Daily Content Generation
+
+on:
+  schedule:
+    # 6 AM IST = 0.5 hours ahead of UTC, so 5:30 UTC
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  generate-content:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate content ideas
+        id: ideas
+        run: npm run content:ideas
+        env:
+          CONTENT_TOPICS: ${{ vars.CONTENT_TOPICS || 'ai,agents,automation,growth,marketing' }}
+          CONTENT_TONE: ${{ vars.CONTENT_TONE || 'educational,authentic,practical' }}
+      
+      - name: Generate platform content
+        id: generate
+        run: npm run content:generate
+        env:
+          AI_PROVIDER: ${{ vars.AI_PROVIDER || 'gemini' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      
+      - name: Quality gate check
+        id: quality
+        run: npm run content:quality
+        env:
+          QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '70' }}
+      
+      - name: Organize drafts
+        id: organize
+        run: npm run content:drafts
+      
+      - name: Create content calendar
+        run: npm run content:schedule -- --calendar
+      
+      - name: Prepare approval notification
+        run: npm run content:notify
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      
+      - name: Commit generated content
+        run: |
+          git config user.name "Signhify Content Bot"
+          git config user.email "bot@signhify.studio"
+          git add content/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-generate content for $(date +%Y-%m-%d)" && git push)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Summary
+        run: |
+          echo "## Content Generation Complete"
+          echo "- Ideas generated: $(ls -1 content/ideas/*.json 2>/dev/null | wc -l)"
+          echo "- Drafts created: $(ls -1 content/drafts/*.json 2>/dev/null | wc -l)"
+          echo "- Approved: $(ls -1 content/drafts/approved/*.json 2>/dev/null | wc -l)"
+          echo "- Scheduled: See content/drafts/scheduled/"
+        run-only-checks: false
+
+# Allow manual trigger
+permissions:
+  contents: write

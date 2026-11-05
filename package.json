@@ -1,0 +1,22 @@
+{
+  "name": "signhify-content-autopilot",
+  "version": "1.0.0",
+  "description": "Automated social media content generation system for Signhify Studio",
+  "type": "module",
+  "scripts": {
+    "content:ideas": "node src/ideas.js",
+    "content:generate": "node src/generate.js",
+    "content:quality": "node src/quality.js",
+    "content:drafts": "node src/drafts.js",
+    "content:notify": "node src/notify.js",
+    "content:schedule": "node src/schedule.js",
+    "youtube:research": "node src/youtube/research.js",
+    "youtube:script": "node src/youtube/script.js",
+    "youtube:voice": "node src/youtube/voice.js",
+    "youtube:assemble": "node src/youtube/assemble.js",
+    "youtube:thumbnail": "node src/youtube/thumbnail.js",
+    "youtube:draft": "node src/youtube/draft.js",
+    "all": "npm run content:ideas && npm run content:generate && npm run content:quality && npm run content:drafts"
+  },
+  "dependencies": {}
+}

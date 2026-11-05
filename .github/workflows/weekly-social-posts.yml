@@ -1,0 +1,83 @@
+# Weekly Social Media Posting Workflow
+# Posts scheduled content to platforms (requires API keys)
+
+name: Post Scheduled Content
+
+on:
+  schedule:
+    # Run every hour to check for scheduled posts
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  post-content:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.INSTAGRAM_ACCESS_TOKEN != '' || secrets.LINKEDIN_ACCESS_TOKEN != '' || secrets.TWITTER_API_KEY != '' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Check for posts to publish
+        id: check
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          DAYNAME=$(date +%A | tr '[:upper:]' '[:lower:]')
+          
+          echo "Checking for scheduled posts for $DAYNAME..."
+          
+          # Check Instagram schedule
+          INSTAGRAM_POSTS=$(cat content/drafts/scheduled/schedule-$TODAY.json 2>/dev/null | jq -r ".[\"$DAYNAME\"].instagram[]? | select(.status == \"approved\")" | wc -l || echo "0")
+          echo "instagram=$INSTAGRAM_POSTS" >> $GITHUB_OUTPUT
+          
+          # Check LinkedIn schedule
+          LINKEDIN_POSTS=$(cat content/drafts/scheduled/schedule-$TODAY.json 2>/dev/null | jq -r ".[\"$DAYNAME\"].linkedin[]? | select(.status == \"approved\")" | wc -l || echo "0")
+          echo "linkedin=$LINKEDIN_POSTS" >> $GITHUB_OUTPUT
+          
+          # Check Twitter schedule
+          TWITTER_POSTS=$(cat content/drafts/scheduled/schedule-$TODAY.json 2>/dev/null | jq -r ".[\"$DAYNAME\"].twitter[]? | select(.status == \"approved\")" | wc -l || echo "0")
+          echo "twitter=$TWITTER_POSTS" >> $GITHUB_OUTPUT
+          
+          echo "Posts found - IG: $INSTAGRAM_POSTS, LI: $LINKEDIN_POSTS, TW: $TWITTER_POSTS"
+      
+      - name: Post to Instagram
+        if: steps.check.outputs.instagram > 0 && secrets.INSTAGRAM_ACCESS_TOKEN != ''
+        run: |
+          echo "📸 Posting to Instagram..."
+          # Instagram Graph API posting logic here
+          # Requires: INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_ACCOUNT_ID
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+      
+      - name: Post to LinkedIn
+        if: steps.check.outputs.linkedin > 0 && secrets.LINKEDIN_ACCESS_TOKEN != ''
+        run: |
+          echo "💼 Posting to LinkedIn..."
+          # LinkedIn API posting logic here
+          # Requires: LINKEDIN_ACCESS_TOKEN
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      
+      - name: Post to Twitter/X
+        if: steps.check.outputs.twitter > 0 && secrets.TWITTER_API_KEY != ''
+        run: |
+          echo "🐦 Posting to Twitter..."
+          # Twitter API posting logic here
+          # Requires: TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+        env:
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+      
+      - name: Update post status
+        run: |
+          echo "Updating post status to 'published'..."
+          # Update the JSON files to mark posts as published
+          # This prevents re-posting

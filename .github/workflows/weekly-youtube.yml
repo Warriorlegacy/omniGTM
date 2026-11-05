@@ -1,0 +1,77 @@
+# Weekly YouTube Video Generation Workflow
+# Runs every Monday at 8 AM IST
+
+name: Weekly YouTube Video
+
+on:
+  schedule:
+    # Monday 8 AM IST = 2:30 UTC
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+jobs:
+  generate-video:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Research YouTube topics
+        run: npm run youtube:research
+        env:
+          CONTENT_TOPICS: ${{ vars.CONTENT_TOPICS }}
+      
+      - name: Generate video script
+        run: npm run youtube:script
+        env:
+          AI_PROVIDER: ${{ vars.AI_PROVIDER || 'gemini' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      
+      - name: Generate voiceover
+        run: npm run youtube:voice
+        env:
+          VOICESTUDIO_PATH: ${{ vars.VOICESTUDIO_PATH }}
+          # Note: VoiceStudio needs to be installed on the runner or use alternative TTS
+      
+      - name: Assemble video
+        run: npm run youtube:assemble
+        env:
+          FFmpeg_PATH: 'ffmpeg' # Should be available on ubuntu-latest
+      
+      - name: Generate thumbnail
+        run: npm run youtube:thumbnail
+      
+      - name: Create upload draft
+        run: npm run youtube:draft
+      
+      - name: Commit video assets
+        run: |
+          git config user.name "Signhify YouTube Bot"
+          git config user.email "bot@signhify.studio"
+          git add content/youtube/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🎬 Weekly YouTube video draft ($(date +%Y-%m-%d))" && git push)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Notify for review
+        run: |
+          echo "## YouTube Video Ready for Review"
+          echo "📹 Video: content/youtube/video-$(date +%Y-%m-%d).mp4"
+          echo "🖼️ Thumbnail: content/youtube/thumbnail-$(date +%Y-%m-%d).png"
+          echo "📄 Upload draft: content/youtube/drafts/upload-draft-$(date +%Y-%m-%d).json"
+          echo ""
+          echo "Review the draft and upload manually, or set up auto-upload with YouTube API."
+        run-only-checks: false
+
+permissions:
+  contents: write
